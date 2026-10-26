@@ -34,6 +34,9 @@ html{height:calc(100% + 2px)!important}
         async src="//gc.zgo.at/count.js"></script>
 </head><body>
 <title>閃身犬</title>
+<script>/* 英文環境顯示英文標題;遊戲畫面本身只有圖示和數字,不用翻 */
+try{var l=new URLSearchParams(location.search).get('lang');if(l!=='en'&&l!=='zh'){l=JSON.parse(localStorage.getItem('ohl_lang')||'null');if(l!=='en'&&l!=='zh')l=/^zh/i.test(navigator.language||'')?'zh':'en'}
+if(l==='en'){document.title='Dodge Dog';document.documentElement.lang='en'}}catch(e){}</script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
