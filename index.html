@@ -107,7 +107,7 @@ body{
 </div>
 
 <script>
-(()=>{
+(async()=>{
 'use strict';
 const TAU=Math.PI*2;
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -535,9 +535,20 @@ function renderDogFrame(kind,pose){
   return c;
 }
 const DOGF={};
-for(const k of['gold','black'])DOGF[k]={};
-function getDogFrame(k,p){return DOGF[k][p]||(DOGF[k][p]={c:renderDogFrame(k,p),w:FW,h:FH,sw:POSES[p].sw,cx:POSES[p].cx});}
-const ghostSil={gold:[],black:[]};
+/* 原有毛髮繪圖的無損圖集;避免每次開頁重算 24 張角色。素材不可用時保留原繪圖備援。 */
+g.fillStyle='#0d1814';g.fillRect(0,0,W,H);g.fillStyle='#fff3d6';g.font='28px '+FONT;g.textAlign='center';g.fillText('…',W/2,H/2);
+let dogSheet=null;
+try{dogSheet=new Image();dogSheet.src='assets/dogs.webp';await dogSheet.decode();}catch(e){dogSheet=null;}
+let dogFrame=0;
+for(const k of['gold','black']){DOGF[k]={};for(const p of['idle','walkA','walkB'].concat(DFRAMES)){
+  let c;
+  if(dogSheet){c=document.createElement('canvas');c.width=FW*FS;c.height=FH*FS;
+    c.getContext('2d').drawImage(dogSheet,dogFrame%6*FW*FS,Math.floor(dogFrame/6)*FH*FS,FW*FS,FH*FS,0,0,c.width,c.height);
+  }else c=renderDogFrame(k,p);
+  DOGF[k][p]={c,w:FW,h:FH,sw:POSES[p].sw,cx:POSES[p].cx};dogFrame++;
+}}
+dogSheet=null;
+const ghostSil={gold:DFRAMES.map(p=>sil(DOGF.gold[p],DOGC.gold.acc)),black:DFRAMES.map(p=>sil(DOGF.black[p],DOGC.black.acc))};
 
 let grassPat=null,cam={x:0,y:0},camSX=0,camSY=0;
 function setWorld(){g.setTransform(DPR*Z,0,0,DPR*Z,DPR*(W/2-(cam.x+camSX)*Z),DPR*(H/2-(cam.y+camSY)*Z));}
@@ -786,7 +797,7 @@ function pickOptions(){
 }
 function openLevelUp(){
   const opts=pickOptions();
-  if(!opts.length){P.hp=Math.min(P.maxHp,P.hp+25);pendingLv=0;return;}
+  if(!opts.length){P.hp=Math.min(P.maxHp,P.hp+25);pendingLv=0;mode='play';return;}
   mode='levelup';joy=null;lv.innerHTML='';
   opts.forEach(k=>{
     const it=ITEMS[k],b=document.createElement('button');b.type='button';b.className='card '+it.cat;b.setAttribute('aria-label',k);
@@ -1058,7 +1069,7 @@ function playerPose(){
 function drawPlayer(){
   if(P.hurtInv>0&&Math.floor(anim*14)%2===0&&mode!=='dead')return;
   if(mode==='dead'&&deadT>0.6)return;
-  const dodging=P.da>=0,fr=getDogFrame(P.kind,playerPose());
+  const dodging=P.da>=0,fr=DOGF[P.kind][playerPose()];
   const flip=dodging?(P.gside>0?-1:1):P.face;
   const bob=dodging?0:(P.run>0.3?-Math.abs(Math.sin(P.phase))*2.2:Math.sin(anim*2.4)*0.6);
   g.save();g.translate(P.x,P.y+34);
@@ -1138,7 +1149,7 @@ function drawWorld(){
   }
   /* ghosts */
   for(const gh of ghosts){
-    const sl=ghostSil[gh.kind][gh.fi]||(ghostSil[gh.kind][gh.fi]=sil(getDogFrame(gh.kind,DFRAMES[gh.fi]),DOGC[gh.kind].acc));
+    const sl=ghostSil[gh.kind][gh.fi];
     g.save();g.translate(gh.x,gh.y+34);g.scale(gh.flip,1);g.globalAlpha=0.5*gh.life/gh.max;
     g.drawImage(sl.c,-FOX*DK,-FOY*DK,FW*DK,FH*DK);g.restore();
   }
@@ -1252,7 +1263,7 @@ function drawPick(){
     g.strokeStyle=col;g.globalAlpha=0.35+0.3*Math.sin(anim*4+i);g.lineWidth=3;
     g.beginPath();g.ellipse(cx,feetY,R*0.9,R*0.26,0,0,TAU);g.stroke();g.globalAlpha=1;
     g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(cx,feetY,R*0.6,R*0.14,0,0,TAU);g.fill();
-    const pose=hv?((Math.floor(anim*6)%2)?'walkA':'walkB'):'idle',fr=getDogFrame(kind,pose);
+    const pose=hv?((Math.floor(anim*6)%2)?'walkA':'walkB'):'idle',fr=DOGF[kind][pose];
     const sc=k*(hv?1.06:1),br=1+0.012*Math.sin(anim*2.6+i);
     g.save();g.translate(cx,feetY+hop);g.scale(sc,sc*br);g.drawImage(fr.c,-FOX,-FOY,FW,FH);g.restore();
     const ic=i?['bark','heart','power']:['bone','speed','dodge'],iy=feetY+34;
@@ -1282,11 +1293,16 @@ function render(){
 }
 
 /* ---------- loop ---------- */
-let last=0;
+let last=0,nextPaint=null;
+const PAINT_MS=matchMedia('(pointer: coarse)').matches?1000/60:0;
 function frame(ts){
   const rdt=Math.min(0.033,(ts-last)/1000||0.016);last=ts;anim+=rdt;
   if(mode==='play'||mode==='dead')update(rdt);
-  render();
+  /* 高更新率手機最多畫 60 次;移動、碰撞與計時仍逐幀照常更新。 */
+  if(!PAINT_MS||nextPaint===null||ts>=nextPaint-0.1){
+    render();
+    if(PAINT_MS)nextPaint=nextPaint===null?ts+PAINT_MS:nextPaint+Math.max(1,Math.floor((ts-nextPaint)/PAINT_MS)+1)*PAINT_MS;
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
