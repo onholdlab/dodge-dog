@@ -40,7 +40,7 @@ if(l==='en'){document.title='Dodge Dog';document.documentElement.lang='en'}}catc
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" media="print" onload="this.media='all'">
 <style>
 [hidden]{display:none!important}
 :root{
@@ -114,7 +114,7 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const stage=document.getElementById('stage'),cv=document.getElementById('c'),g=cv.getContext('2d'),lv=document.getElementById('lv');
 const FONT='"Lilita One","Arial Rounded MT Bold",system-ui,sans-serif';
-try{document.fonts&&document.fonts.load('20px "Lilita One"');}catch(e){}
+
 
 /* ---------- layout ---------- */
 let W=0,H=0,DPR=1,Z=1,ins={l:16,r:16,t:0,b:0},vig=null;
@@ -535,8 +535,9 @@ function renderDogFrame(kind,pose){
   return c;
 }
 const DOGF={};
-for(const k of['gold','black']){DOGF[k]={};for(const p of['idle','walkA','walkB'].concat(DFRAMES))DOGF[k][p]={c:renderDogFrame(k,p),w:FW,h:FH,sw:POSES[p].sw,cx:POSES[p].cx};}
-const ghostSil={gold:DFRAMES.map(p=>sil(DOGF.gold[p],DOGC.gold.acc)),black:DFRAMES.map(p=>sil(DOGF.black[p],DOGC.black.acc))};
+for(const k of['gold','black'])DOGF[k]={};
+function getDogFrame(k,p){return DOGF[k][p]||(DOGF[k][p]={c:renderDogFrame(k,p),w:FW,h:FH,sw:POSES[p].sw,cx:POSES[p].cx});}
+const ghostSil={gold:[],black:[]};
 
 let grassPat=null,cam={x:0,y:0},camSX=0,camSY=0;
 function setWorld(){g.setTransform(DPR*Z,0,0,DPR*Z,DPR*(W/2-(cam.x+camSX)*Z),DPR*(H/2-(cam.y+camSY)*Z));}
@@ -1057,7 +1058,7 @@ function playerPose(){
 function drawPlayer(){
   if(P.hurtInv>0&&Math.floor(anim*14)%2===0&&mode!=='dead')return;
   if(mode==='dead'&&deadT>0.6)return;
-  const dodging=P.da>=0,fr=DOGF[P.kind][playerPose()];
+  const dodging=P.da>=0,fr=getDogFrame(P.kind,playerPose());
   const flip=dodging?(P.gside>0?-1:1):P.face;
   const bob=dodging?0:(P.run>0.3?-Math.abs(Math.sin(P.phase))*2.2:Math.sin(anim*2.4)*0.6);
   g.save();g.translate(P.x,P.y+34);
@@ -1137,7 +1138,7 @@ function drawWorld(){
   }
   /* ghosts */
   for(const gh of ghosts){
-    const sl=ghostSil[gh.kind][gh.fi];
+    const sl=ghostSil[gh.kind][gh.fi]||(ghostSil[gh.kind][gh.fi]=sil(getDogFrame(gh.kind,DFRAMES[gh.fi]),DOGC[gh.kind].acc));
     g.save();g.translate(gh.x,gh.y+34);g.scale(gh.flip,1);g.globalAlpha=0.5*gh.life/gh.max;
     g.drawImage(sl.c,-FOX*DK,-FOY*DK,FW*DK,FH*DK);g.restore();
   }
@@ -1251,7 +1252,7 @@ function drawPick(){
     g.strokeStyle=col;g.globalAlpha=0.35+0.3*Math.sin(anim*4+i);g.lineWidth=3;
     g.beginPath();g.ellipse(cx,feetY,R*0.9,R*0.26,0,0,TAU);g.stroke();g.globalAlpha=1;
     g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(cx,feetY,R*0.6,R*0.14,0,0,TAU);g.fill();
-    const pose=hv?((Math.floor(anim*6)%2)?'walkA':'walkB'):'idle',fr=DOGF[kind][pose];
+    const pose=hv?((Math.floor(anim*6)%2)?'walkA':'walkB'):'idle',fr=getDogFrame(kind,pose);
     const sc=k*(hv?1.06:1),br=1+0.012*Math.sin(anim*2.6+i);
     g.save();g.translate(cx,feetY+hop);g.scale(sc,sc*br);g.drawImage(fr.c,-FOX,-FOY,FW,FH);g.restore();
     const ic=i?['bark','heart','power']:['bone','speed','dodge'],iy=feetY+34;
